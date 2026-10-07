@@ -1,3 +1,136 @@
 # albert-looker-cst
 
-Lossless LookML CST parser.
+A lossless LookML parser written in Rust with Python bindings. It parses a LookML file into a
+concrete syntax tree (CST) that keeps every comment, blank line and indentation, so a file can be
+read, modified and written back out with its formatting intact:
+
+```python
+from albert_looker_cst import parse
+
+doc = parse(source)
+assert str(doc) == source  # byte for byte, for every file in the looker repo
+```
+
+The parser is built with [nom](https://github.com/rust-bakery/nom). The Python package is an
+abi3 wheel built against Python 3.9, so one wheel works on both of albert-common's branches
+(3.9 and 3.11).
+
+## Python usage
+
+```python
+from albert_looker_cst import parse, LookmlSyntaxError
+
+doc = parse(path.read_text())
+
+view = doc.find("view", "users")             # first `view: users { ... }`
+dim = view.find("dimension", "id")
+
+dim["type"]                                  # "number"
+dim["type"] = "string"                       # keeps the value's kind: type: string
+dim["label"] = "User ID"                     # adds a missing pair: label: "User ID"
+dim["hidden"] = True                         # hidden: yes
+dim["sql"] = "${TABLE}.user_id"              # sql: ${TABLE}.user_id ;;
+dim.comments = ["# primary key"]             # rewrites the comment lines above the pair
+
+email = view.add("dimension", name="email", index=2)   # new block, spaced like its siblings
+email["type"] = "string"
+
+measure = view.find("measure", "count")
+measure["drill_fields"] = ["id", "email"]               # list layout and quoting are kept
+measure["filters"] = {"status": "active"}               # filters: [status: "active"]
+
+view.add_source("""
+measure: total {
+  type: sum
+  sql: ${TABLE}.amount ;;
+}
+""")                                         # parsed and re-indented to fit
+
+view.remove("dimension", name="legacy")      # removes the pair and its comments
+dim.detach()                                 # removes a pair from wherever it is
+
+path.write_text(str(doc))
+```
+
+### API
+
+`parse(source) -> Document` raises `LookmlSyntaxError` (a `ValueError`) with `line`, `column`
+and `offset` attributes.
+
+`Document` and block `Pair`s are containers with the same methods:
+
+| Method                                         | Description                                                     |
+| ---------------------------------------------- | --------------------------------------------------------------- |
+| `children`                                     | Direct child pairs                                              |
+| `find(key, name=None)` / `find_all(...)`       | Child pairs by key, and block name                              |
+| `get(key, default=None)`, `c[key]`             | Value of the first child with key                               |
+| `c[key] = value`                               | Set the first child with key, adding it when missing            |
+| `del c[key]`, `remove(pair_or_key, name=None)` | Remove a child and the comments above it                        |
+| `add(key, value=None, *, name, kind, index)`   | Add a child; with no value it is a block, named when name given |
+| `add_source(source, index=None)`               | Insert pairs parsed from a LookML snippet, re-indented          |
+| `walk()`                                       | Every pair underneath, depth first                              |
+| `len(c)`, `iter(c)`, `key in c`                | Child count, iteration, key membership                          |
+
+`Pair` also has `key`, `name` (block name), `kind`, `value`, `set_value(value, kind=None)`,
+`comments`, `parent`, `detach()` and `to_string(include_leading=False)`. Pairs are live handles:
+editing a pair returned by `find` edits the document, and two handles to the same node compare
+equal.
+
+### Values
+
+| `kind`    | LookML                     | Python value                         |
+| --------- | -------------------------- | ------------------------------------ |
+| `literal` | `type: number`             | `"number"`                           |
+| `string`  | `label: "Say \"hi\""`      | `'Say "hi"'` (unescaped)             |
+| `expr`    | `sql: ${TABLE}.id ;;`      | `"${TABLE}.id"`                      |
+| `list`    | `filters: [a: "x", b, c]`  | `[("a", "x"), "b", "c"]`             |
+| `block`   | `dimension: id { ... }`    | `None` (use the container methods)   |
+
+Assigning to `value` (or `c[key]`) keeps the current kind, except that a literal becomes a
+string when the new text needs quotes. A new value's kind is inferred: `sql`, `html`, `sql_*`
+and `*_sql` keys are expressions; identifier-like text such as `number` is a literal, except
+for keys that are conventionally quoted (`label`, `description`, `group_label`, ...); booleans
+become `yes`/`no`; lists, tuples and dicts become lists. Pass `kind=` to choose explicitly.
+
+New pairs copy the spacing of their neighbours, so a dimension added to a view gets the blank
+line and indentation the other dimensions have, and a replaced list keeps its inline or
+one-per-line layout, comma style and trailing comma.
+
+## Rust usage
+
+```rust
+let doc = albert_looker_cst::parse(&source)?;
+let view = doc.body.find("view", Some("users")).unwrap();
+let id = view.read().body().unwrap().find("dimension", Some("id")).unwrap();
+id.write().body_mut().unwrap().find("type", None).unwrap().write().set_text("string");
+assert!(doc.to_string().contains("type: string"));
+```
+
+The tree is in `src/cst.rs`: every node owns the whitespace and comments before it (`leading`),
+and a block or list owns the trivia before its closing bracket (`trailing`), so printing is a
+plain concatenation. Editing helpers are in `src/edit.rs`.
+
+## Development
+
+```sh
+cargo test                       # Rust unit, fixture and looker repo tests
+uv run pytest                    # builds the extension, then runs the Python tests
+cargo run --release --example roundtrip -- ../looker   # round trip check of a directory
+```
+
+The looker repo tests read every `.lkml` file in `../looker` (or `$LOOKER_REPO`); for each file
+they check the round trip, rewrite every value with itself, edit every value and read it back,
+and add then remove pairs in every block, checking the source is restored exactly. They are
+skipped when the repo is missing unless `REQUIRE_LOOKER_REPO` is set.
+
+To test a specific Python version:
+
+```sh
+UV_PROJECT_ENVIRONMENT=.venv-3.9 uv run --python 3.9 pytest
+```
+
+To build a wheel for albert-common:
+
+```sh
+uvx maturin build --release      # target/wheels/albert_looker_cst-*-cp39-abi3-*.whl
+```
