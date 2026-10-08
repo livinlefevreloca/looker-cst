@@ -1,49 +1,19 @@
 //! Reads, modifies and rewrites every .lkml file in the looker repo.
 //!
-//! The repo is found at LOOKER_REPO, or ../looker next to this crate. When it is missing
-//! the tests are skipped, unless REQUIRE_LOOKER_REPO is set (as in CI), where they fail.
+//! See support/looker_repo.rs for how the checkout is found or cloned. When it is unavailable
+//! these tests pass without checking anything, unless REQUIRE_LOOKER_REPO is set.
+
+mod support;
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+
+use support::looker_repo::looker_files;
 
 use albert_looker_cst::edit::{block_value, infer_scalar, new_pair};
 use albert_looker_cst::{Body, Document, PairRef, Value, parse};
 
 const MARKER_KEY: &str = "lkml_cst_marker";
-
-fn looker_files() -> Vec<PathBuf> {
-    let root = std::env::var("LOOKER_REPO")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| Path::new(env!("CARGO_MANIFEST_DIR")).join("../looker"));
-    if !root.is_dir() {
-        assert!(
-            std::env::var_os("REQUIRE_LOOKER_REPO").is_none(),
-            "looker repo not found at {}",
-            root.display()
-        );
-        eprintln!("skipping: looker repo not found at {}", root.display());
-        return Vec::new();
-    }
-    let mut files = Vec::new();
-    collect(&root, &mut files);
-    files.sort();
-    assert!(!files.is_empty(), "no .lkml files under {}", root.display());
-    files
-}
-
-fn collect(dir: &Path, files: &mut Vec<PathBuf>) {
-    for entry in fs::read_dir(dir).unwrap() {
-        let path = entry.unwrap().path();
-        if path.is_dir() {
-            if path.file_name().is_some_and(|name| name != ".git") {
-                collect(&path, files);
-            }
-        } else if path.extension().is_some_and(|ext| ext == "lkml") {
-            files.push(path);
-        }
-    }
-}
-
 /// Parses every file, running check on each and reporting all failures together.
 fn for_each_file(check: impl Fn(&Path, &str) -> Result<(), String>) {
     let failures: Vec<String> = looker_files()

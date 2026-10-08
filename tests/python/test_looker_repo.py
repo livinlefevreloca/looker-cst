@@ -1,24 +1,64 @@
 """Reads, modifies and rewrites every .lkml file in the looker repo through the Python API.
 
-The repo is found at LOOKER_REPO, or ../looker next to this one. Without it these tests are
-skipped, unless REQUIRE_LOOKER_REPO is set.
+The repo is read from LOOKER_REPO, which defaults to target/looker. When that path does not
+exist the repo is cloned there from LOOKER_REPO_URL (default meetalbert/looker over SSH), so
+point LOOKER_REPO at an existing checkout such as ../looker to test a branch. If the clone
+fails these tests are skipped, unless REQUIRE_LOOKER_REPO is set.
 """
 
 import os
+import shutil
+import subprocess
+import sys
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import pytest
 
 from albert_looker_cst import Pair, parse
 
-LOOKER_REPO = Path(os.environ.get("LOOKER_REPO", Path(__file__).parents[2].parent / "looker"))
-FILES = sorted(p for p in LOOKER_REPO.rglob("*.lkml") if ".git" not in p.parts) if LOOKER_REPO.is_dir() else []
+PROJECT_ROOT = Path(__file__).parents[2]
+LOOKER_REPO = Path(os.environ.get("LOOKER_REPO", PROJECT_ROOT / "target" / "looker"))
+LOOKER_REPO_URL = os.environ.get("LOOKER_REPO_URL", "git@github.com:meetalbert/looker.git")
 
-if not FILES and os.environ.get("REQUIRE_LOOKER_REPO"):
+
+def clone_looker_repo() -> Optional[str]:
+    """Shallow clones the looker repo to LOOKER_REPO, returning why it failed if it did.
+
+    The clone goes to a temporary directory first so an interrupted clone is never mistaken
+    for a complete checkout.
+    """
+    partial = LOOKER_REPO.with_name(f"{LOOKER_REPO.name}.partial-{os.getpid()}")
+    LOOKER_REPO.parent.mkdir(parents=True, exist_ok=True)
+    print(f"cloning {LOOKER_REPO_URL} to {LOOKER_REPO}", file=sys.stderr)
+    result = subprocess.run(
+        ["git", "clone", "--quiet", "--depth", "1", LOOKER_REPO_URL, str(partial)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        shutil.rmtree(partial, ignore_errors=True)
+        return result.stderr.strip()
+    try:
+        partial.rename(LOOKER_REPO)
+    except OSError:
+        # Another test process finished its clone first; use that one.
+        shutil.rmtree(partial, ignore_errors=True)
+    return None
+
+
+CLONE_ERROR = None if LOOKER_REPO.is_dir() else clone_looker_repo()
+if CLONE_ERROR and os.environ.get("REQUIRE_LOOKER_REPO"):
+    raise RuntimeError(f"could not clone {LOOKER_REPO_URL} to {LOOKER_REPO}: {CLONE_ERROR}")
+
+FILES = sorted(p for p in LOOKER_REPO.rglob("*.lkml") if ".git" not in p.parts) if LOOKER_REPO.is_dir() else []
+if LOOKER_REPO.is_dir() and not FILES:
     raise RuntimeError(f"no .lkml files found under {LOOKER_REPO}")
 
-pytestmark = pytest.mark.skipif(not FILES, reason=f"looker repo not found at {LOOKER_REPO}")
+pytestmark = pytest.mark.skipif(
+    not FILES, reason=f"could not clone {LOOKER_REPO_URL} to {LOOKER_REPO}: {CLONE_ERROR}"
+)
 
 
 def ids(path: Path) -> str:
