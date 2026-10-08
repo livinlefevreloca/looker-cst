@@ -3,7 +3,7 @@ requires = ["maturin>=1.9,<2.0"]
 build-backend = "maturin"
 
 [project]
-name = "albert-looker-cst"
+name = "looker-cst"
 version = "0.1.0"
 description = "Lossless LookML parser: read, modify and rewrite LookML with its formatting intact"
 requires-python = ">=3.9"
@@ -17,7 +17,7 @@ dev = ["pytest>=8"]
 
 [tool.maturin]
 python-source = "python"
-module-name = "albert_looker_cst._native"
+module-name = "looker_cst._native"
 features = ["python"]
 
 [tool.pytest.ini_options]

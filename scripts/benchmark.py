@@ -1,4 +1,4 @@
-"""Compare albert_looker_cst with lkml on every .lkml file in a repo.
+"""Compare looker_cst with lkml on every .lkml file in a repo.
 
 Times parsing, printing a parsed tree, and the full round trip, reporting the median of
 several runs over the whole repo. Defaults to the checkout the tests clone into, target/looker.
@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 from typing import Callable, Dict, List
 
-import albert_looker_cst
+import looker_cst
 
 try:
     import lkml
@@ -37,7 +37,7 @@ def main() -> int:
     megabytes = sum(len(s.encode()) for s in sources) / 1e6
     print(f"{len(sources)} files, {megabytes:.1f} MB, median of {args.repeat} runs\n")
 
-    results: Dict[str, Dict[str, float]] = {"albert_looker_cst": benchmark_albert(sources, args.repeat)}
+    results: Dict[str, Dict[str, float]] = {"looker_cst": benchmark_looker_cst(sources, args.repeat)}
     if lkml is None:
         print("lkml is not installed; run with `uv run --with lkml` to compare\n", file=sys.stderr)
     else:
@@ -46,13 +46,13 @@ def main() -> int:
     return 0
 
 
-def benchmark_albert(sources: List[str], repeat: int) -> Dict[str, float]:
-    """Times albert_looker_cst over all sources."""
-    docs = [albert_looker_cst.parse(s) for s in sources]
+def benchmark_looker_cst(sources: List[str], repeat: int) -> Dict[str, float]:
+    """Times looker_cst over all sources."""
+    docs = [looker_cst.parse(s) for s in sources]
     return {
-        "parse": median_seconds(lambda: [albert_looker_cst.parse(s) for s in sources], repeat),
+        "parse": median_seconds(lambda: [looker_cst.parse(s) for s in sources], repeat),
         "print": median_seconds(lambda: [str(d) for d in docs], repeat),
-        "round trip": median_seconds(lambda: [str(albert_looker_cst.parse(s)) for s in sources], repeat),
+        "round trip": median_seconds(lambda: [str(looker_cst.parse(s)) for s in sources], repeat),
     }
 
 
@@ -79,15 +79,15 @@ def median_seconds(run: Callable[[], object], repeat: int) -> float:
 
 def print_table(results: Dict[str, Dict[str, float]], megabytes: float) -> None:
     """Prints each benchmark's time per library, and lkml's time as a multiple of ours."""
-    ours = results["albert_looker_cst"]
+    ours = results["looker_cst"]
     theirs = results.get("lkml", {})
-    print(f"{'benchmark':<14}{'albert_looker_cst':>20}{'lkml':>12}{'lkml / ours':>14}")
+    print(f"{'benchmark':<14}{'looker_cst':>20}{'lkml':>12}{'lkml / ours':>14}")
     for name in dict.fromkeys([*ours, *theirs]):
         mine = f"{ours[name] * 1000:.1f} ms" if name in ours else "-"
         other = f"{theirs[name] * 1000:.1f} ms" if name in theirs else "-"
         ratio = f"{theirs[name] / ours[name]:.0f}x" if name in ours and name in theirs else "-"
         print(f"{name:<14}{mine:>20}{other:>12}{ratio:>14}")
-    print(f"\nalbert_looker_cst parses at {megabytes / ours['parse']:.0f} MB/s")
+    print(f"\nlooker_cst parses at {megabytes / ours['parse']:.0f} MB/s")
 
 
 if __name__ == "__main__":

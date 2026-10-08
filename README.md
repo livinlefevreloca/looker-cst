@@ -1,24 +1,23 @@
-# albert-looker-cst
+# looker-cst
 
 A lossless LookML parser written in Rust with Python bindings. It parses a LookML file into a
 concrete syntax tree (CST) that keeps every comment, blank line and indentation, so a file can be
 read, modified and written back out with its formatting intact:
 
 ```python
-from albert_looker_cst import parse
+from looker_cst import parse
 
 doc = parse(source)
 assert str(doc) == source  # byte for byte, for every file in the looker repo
 ```
 
 The parser is built with [nom](https://github.com/rust-bakery/nom). The Python package is an
-abi3 wheel built against Python 3.9, so one wheel works on both of albert-common's branches
-(3.9 and 3.11).
+abi3 wheel built against Python 3.9, so one wheel works on Python 3.9 and 3.11.
 
 ## Python usage
 
 ```python
-from albert_looker_cst import parse, LookmlSyntaxError
+from looker_cst import parse, LookmlSyntaxError
 
 doc = parse(path.read_text())
 
@@ -96,10 +95,53 @@ New pairs copy the spacing of their neighbours, so a dimension added to a view g
 line and indentation the other dimensions have, and a replaced list keeps its inline or
 one-per-line layout, comma style and trailing comma.
 
+### Building objects from Python
+
+`View`, `Explore`, `Join`, `Dimension`, `DimensionGroup` and `Measure` build LookML from
+Python values. Each fixes only its LookML key; fields are arbitrary keyword arguments, so any
+parameter Looker supports can be written, and nested objects are passed positionally:
+
+```python
+from looker_cst import Block, Case, Dimension, Explore, Join, Measure, Named, Quoted, View
+
+view = View(
+    "users",
+    Dimension("id", primary_key=True, type="number", sql="${TABLE}.id"),
+    Dimension(
+        "status",
+        case=Case({"${TABLE}.status = 1": "Active", "${TABLE}.status = 0": "Inactive"}, else_="Unknown"),
+    ),
+    Dimension(
+        "email",
+        type="string",
+        sql="${TABLE}.email",
+        tags=["pii"],
+        link=[Block(label="Profile", url="https://admin.example.com/{{ value }}")],
+    ),
+    Measure("count", type="count", drill_fields=["id", "email"], filters={"status": "Active"}),
+    sql_table_name="public.users",
+)
+path.write_text(str(view))                       # a new file
+
+doc = parse(path.read_text())
+Dimension("name", type="string").add_to(doc.find("view", "users"), index=3)   # into a parsed file
+Explore("users", Join("orders", from_="orders_v2", sql_on="${users.id} = ${orders.user_id}")).add_to(doc)
+```
+
+- Values convert as in `add`: `sql` style keys become `;;` expressions, booleans `yes`/`no`,
+  lists `[a, b]` and dicts `[key: "value"]`.
+- `Block(...)` is an unnamed `{ }` block such as `link` or `derived_table`; a list of them
+  repeats the key. `Case(...)` writes a case's `when` blocks and `else`.
+- `Quoted("usd")`, `Literal("Count")` and `Expr("${id}")` force a value's form.
+- A trailing underscore is dropped from field names, for Python keywords: `from_`, `else_`.
+- `Named(key, name, ...)` covers any other block, e.g. `Named("parameter", "metric", type="unquoted")`.
+- `add_to` spaces the new object like its siblings; where there are none to copy, named blocks
+  are set apart by a blank line and unnamed ones are not.
+
 ## Rust usage
 
 ```rust
-let doc = albert_looker_cst::parse(&source)?;
+let doc = looker_cst::parse(&source)?;
 let view = doc.body.find("view", Some("users")).unwrap();
 let id = view.read().body().unwrap().find("dimension", Some("id")).unwrap();
 id.write().body_mut().unwrap().find("type", None).unwrap().write().set_text("string");
@@ -116,6 +158,7 @@ plain concatenation. Editing helpers are in `src/edit.rs`.
 cargo test                       # Rust unit, fixture and looker repo tests
 uv run pytest                    # builds the extension, then runs the Python tests
 cargo run --release --example roundtrip -- ../looker   # round trip check of a directory
+uv run scripts/view_cst.py ../looker/models/analytics.model.lkml   # browse a file's tree
 ```
 
 The looker repo tests read every `.lkml` file in the looker repo. For each file they check the
@@ -136,14 +179,14 @@ point the tests at it: `LOOKER_REPO=../looker cargo test`.
 
 ```sh
 cargo bench                                  # criterion: fixture, looker repo, largest file
-uv run --with lkml scripts/benchmark.py      # Python: albert_looker_cst against lkml
+uv run --with lkml scripts/benchmark.py      # Python: looker_cst against lkml
 ```
 
 Both use the looker repo checkout the tests clone (`target/looker`, or `$LOOKER_REPO`), and
 `scripts/benchmark.py` also takes a path. On an Apple Silicon laptop over the 1097 files
 (5.1 MB) of `meetalbert/looker`, through Python:
 
-| Benchmark  | albert_looker_cst | lkml      | lkml / ours |
+| Benchmark  | looker_cst | lkml      | lkml / ours |
 | ---------- | ----------------- | --------- | ----------- |
 | parse      | 23.4 ms           | 2411.6 ms | 103x        |
 | print      | 5.9 ms            | 145.7 ms  | 25x         |
@@ -157,8 +200,8 @@ To test a specific Python version:
 UV_PROJECT_ENVIRONMENT=.venv-3.9 uv run --python 3.9 pytest
 ```
 
-To build a wheel for albert-common:
+To build a wheel:
 
 ```sh
-uvx maturin build --release      # target/wheels/albert_looker_cst-*-cp39-abi3-*.whl
+uvx maturin build --release      # target/wheels/looker_cst-*-cp39-abi3-*.whl
 ```

@@ -10,8 +10,8 @@ use std::path::Path;
 
 use support::looker_repo::looker_files;
 
-use albert_looker_cst::edit::{block_value, infer_scalar, new_pair};
-use albert_looker_cst::{Body, Document, PairRef, Value, parse};
+use looker_cst::edit::{block_value, infer_scalar, new_pair};
+use looker_cst::{Body, Document, PairRef, Value, parse};
 
 const MARKER_KEY: &str = "lkml_cst_marker";
 /// Parses every file, running check on each and reporting all failures together.

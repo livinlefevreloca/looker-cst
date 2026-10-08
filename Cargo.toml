@@ -1,11 +1,11 @@
 [package]
-name = "albert-looker-cst"
+name = "looker-cst"
 version = "0.1.0"
 edition = "2024"
 description = "Lossless concrete syntax tree parser for LookML with Python bindings"
 
 [lib]
-name = "albert_looker_cst"
+name = "looker_cst"
 crate-type = ["cdylib", "rlib"]
 
 [features]

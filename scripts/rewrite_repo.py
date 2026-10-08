@@ -4,13 +4,13 @@ Rewrites the files in place by default, so `git -C <repo> diff` shows anything t
 changed. With --out the repo is copied to a separate directory and rewritten there instead.
 
     uv run --with lkml scripts/rewrite_repo.py ../looker --lib lkml
-    uv run scripts/rewrite_repo.py ../looker --lib albert_looker_cst
+    uv run scripts/rewrite_repo.py ../looker --lib looker_cst
     git -C ../looker status --short    # empty when the round trip is lossless
 
 With --insert and --view, the LookML in a file (such as a dimension) is also added to the end
 of that view, so the diff shows only the inserted lines:
 
-    uv run scripts/rewrite_repo.py ../looker --lib albert_looker_cst \\
+    uv run scripts/rewrite_repo.py ../looker --lib looker_cst \\
         --insert new_dimension.lkml --view users
     git -C ../looker diff
 """
@@ -31,16 +31,16 @@ def lkml_round_trip(source: str) -> str:
     return str(lkml.parse(source))
 
 
-def albert_round_trip(source: str) -> str:
-    """Round trips through albert_looker_cst."""
-    import albert_looker_cst
+def looker_cst_round_trip(source: str) -> str:
+    """Round trips through looker_cst."""
+    import looker_cst
 
-    return str(albert_looker_cst.parse(source))
+    return str(looker_cst.parse(source))
 
 
 LIBS: Dict[str, Callable[[str], str]] = {
     "lkml": lkml_round_trip,
-    "albert_looker_cst": albert_round_trip,
+    "looker_cst": looker_cst_round_trip,
 }
 
 
@@ -56,8 +56,8 @@ def main() -> int:
 
     if (args.insert is None) != (args.view is None):
         parser.error("--insert and --view must be given together")
-    if args.insert and args.lib != "albert_looker_cst":
-        parser.error("--insert is only supported with --lib albert_looker_cst")
+    if args.insert and args.lib != "looker_cst":
+        parser.error("--insert is only supported with --lib looker_cst")
 
     repo: Path = args.repo.resolve()
     out: Optional[Path] = args.out.resolve() if args.out else None
@@ -115,24 +115,24 @@ def main() -> int:
 
 def files_defining_view(files: List[Path], view: str) -> List[Path]:
     """Files with a top level view block of this name."""
-    import albert_looker_cst
+    import looker_cst
 
     matches = []
     for path in files:
         source = path.read_text()
-        if view in source and albert_looker_cst.parse(source).find("view", view) is not None:
+        if view in source and looker_cst.parse(source).find("view", view) is not None:
             matches.append(path)
     return matches
 
 
 def insert_into_view(source: str, view: str, snippet: str) -> str:
     """Adds the pairs in snippet to the end of the view, checking the result parses back."""
-    import albert_looker_cst
+    import looker_cst
 
-    doc = albert_looker_cst.parse(source)
+    doc = looker_cst.parse(source)
     added = doc.find("view", view).add_source(snippet)
     rewritten = str(doc)
-    reparsed = albert_looker_cst.parse(rewritten).find("view", view)
+    reparsed = looker_cst.parse(rewritten).find("view", view)
     expected = [(p.key, p.name) for p in added]
     if [(p.key, p.name) for p in reparsed.children[-len(added) :]] != expected:
         raise RuntimeError("inserted pairs were not found at the end of the view after reparsing")

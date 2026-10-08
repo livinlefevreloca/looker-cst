@@ -1,4 +1,4 @@
-//! Python bindings, exposed as the albert_looker_cst._native extension module.
+//! Python bindings, exposed as the looker_cst._native extension module.
 //!
 //! Python objects are handles onto nodes of a shared tree: a Pair returned by find()
 //! stays attached to its document, so editing it edits the document.
@@ -19,7 +19,7 @@ use crate::edit::{
 use crate::parser::{is_expr_key, is_token_char, parse};
 
 create_exception!(
-    albert_looker_cst,
+    looker_cst,
     LookmlSyntaxError,
     PyValueError,
     "Raised when LookML source cannot be parsed. Has line, column and offset attributes."
@@ -54,13 +54,13 @@ fn parse_lookml(py: Python<'_>, source: &str) -> PyResult<PyDocument> {
 }
 
 /// A parsed LookML file. str() returns the source, including any edits.
-#[pyclass(name = "Document", module = "albert_looker_cst", frozen)]
+#[pyclass(name = "Document", module = "looker_cst", frozen)]
 struct PyDocument {
     inner: DocRef,
 }
 
 /// A `key: value` entry in a document, such as `type: number` or `dimension: id { ... }`.
-#[pyclass(name = "Pair", module = "albert_looker_cst", frozen)]
+#[pyclass(name = "Pair", module = "looker_cst", frozen)]
 struct PyPair {
     inner: PairRef,
     parent: Option<Parent>,

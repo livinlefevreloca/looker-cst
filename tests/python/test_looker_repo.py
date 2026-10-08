@@ -15,7 +15,7 @@ from typing import List, Optional
 
 import pytest
 
-from albert_looker_cst import Pair, parse
+from looker_cst import Pair, parse
 
 PROJECT_ROOT = Path(__file__).parents[2]
 LOOKER_REPO = Path(os.environ.get("LOOKER_REPO", PROJECT_ROOT / "target" / "looker"))

@@ -5,9 +5,9 @@
 //! formatting and comments intact.
 //!
 //! ```
-//! # fn main() -> Result<(), albert_looker_cst::ParseError> {
+//! # fn main() -> Result<(), looker_cst::ParseError> {
 //! let source = "view: users {\n  dimension: id {\n    type: number\n  }\n}\n";
-//! let doc = albert_looker_cst::parse(source)?;
+//! let doc = looker_cst::parse(source)?;
 //! assert_eq!(doc.to_string(), source);
 //!
 //! let view = doc.body.find("view", Some("users")).unwrap();

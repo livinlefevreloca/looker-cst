@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-import albert_looker_cst
-from albert_looker_cst import Document, LookmlSyntaxError, Pair, parse
+import looker_cst
+from looker_cst import Document, LookmlSyntaxError, Pair, parse
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 
@@ -48,7 +48,7 @@ def test_fixtures_round_trip(path: Path) -> None:
 
 def test_document_parse_alias() -> None:
     assert str(Document.parse(VIEW)) == VIEW
-    assert albert_looker_cst.parse_lookml is albert_looker_cst.parse
+    assert looker_cst.parse_lookml is looker_cst.parse
 
 
 def test_reading_values(view: Pair) -> None:
@@ -261,6 +261,7 @@ def test_new_document_from_scratch() -> None:
     assert str(doc) == (
         'connection: "redshift_prod"\n'
         'include: "/views/*.view"\n'
+        "\n"
         "explore: users {\n"
         "  join: orders {\n"
         "    type: left_outer\n"

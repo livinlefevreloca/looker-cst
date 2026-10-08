@@ -27,6 +27,7 @@ const STRING_KEYS: &[&str] = &[
     "max_cache_age",
     "persist_for",
     "url",
+    "value",
     "value_format",
     "view_label",
 ];
@@ -227,27 +228,38 @@ impl Body {
         // copies the nearest sibling with the same key, or else the same shape, so a dimension
         // gets the blank line other dimensions have even when added after a one-line pair. The
         // first pair is skipped as its spacing follows the brace rather than another sibling.
-        let reference = if index == 0 {
-            0
-        } else {
-            let is_block = matches!(pair.value, Value::Block(_));
-            let nearest_first: Vec<usize> = (1..self.items.len())
-                .flat_map(|distance| [index.checked_sub(distance), Some(index + distance - 1)])
-                .flatten()
-                .filter(|&i| i > 0 && i < self.items.len())
-                .collect();
-            let find_like = |like: &dyn Fn(&Pair) -> bool| {
-                nearest_first
-                    .iter()
-                    .copied()
-                    .find(|&i| like(&self.items[i].read()))
-            };
-            find_like(&|sibling| sibling.key == pair.key)
-                .or_else(|| find_like(&|sibling| matches!(sibling.value, Value::Block(_)) == is_block))
-                .unwrap_or(index - 1)
+        if index == 0 {
+            return initial_whitespace(&self.items[0].read().leading).to_string();
+        }
+        let is_block = matches!(pair.value, Value::Block(_));
+        let nearest_first: Vec<usize> = (1..self.items.len())
+            .flat_map(|distance| [index.checked_sub(distance), Some(index + distance - 1)])
+            .flatten()
+            .filter(|&i| i > 0 && i < self.items.len())
+            .collect();
+        let find_like = |like: &dyn Fn(&Pair) -> bool| {
+            nearest_first
+                .iter()
+                .copied()
+                .find(|&i| like(&self.items[i].read()))
         };
+        let like = find_like(&|sibling| sibling.key == pair.key)
+            .or_else(|| find_like(&|sibling| matches!(sibling.value, Value::Block(_)) == is_block));
+        let spacing = self.spacing_near(like.unwrap_or(index - 1), parent_indent, is_root);
+        // With no similar sibling to copy, a named block (a view, explore, dimension or join) is
+        // set apart by a blank line, as such blocks conventionally are. Unnamed blocks such as
+        // link, when and allowed_value conventionally are not.
+        if like.is_none() && pair.name().is_some() && spacing.matches('\n').count() == 1 {
+            return format!("\n{spacing}");
+        }
+        spacing
+    }
+
+    /// The spacing before the pair at reference, or before any sibling that starts on its own
+    /// line when that pair does not.
+    fn spacing_near(&self, reference: usize, parent_indent: &str, is_root: bool) -> String {
         let spacing = initial_whitespace(&self.items[reference].read().leading).to_string();
-        if index == 0 || spacing.contains('\n') || (!spacing.is_empty() && !is_root) {
+        if spacing.contains('\n') || (!spacing.is_empty() && !is_root) {
             return spacing;
         }
         self.items

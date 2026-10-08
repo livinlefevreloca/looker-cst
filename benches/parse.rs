@@ -10,7 +10,7 @@ use std::fs;
 use std::hint::black_box;
 use std::path::Path;
 
-use albert_looker_cst::{Document, parse};
+use looker_cst::{Document, parse};
 use criterion::{BatchSize, Criterion, Throughput, criterion_group, criterion_main};
 
 const DIMENSION: &str = "dimension: benchmark_marker {\n  type: number\n  sql: ${TABLE}.marker ;;\n}";

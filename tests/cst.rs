@@ -3,8 +3,8 @@
 use std::fs;
 use std::path::Path;
 
-use albert_looker_cst::edit::{block_value, escape_string, infer_scalar, new_pair, unescape_string};
-use albert_looker_cst::{ListValue, PairRef, Value, parse};
+use looker_cst::edit::{block_value, escape_string, infer_scalar, new_pair, unescape_string};
+use looker_cst::{ListValue, PairRef, Value, parse};
 
 const VIEW: &str = "\
 # users view
@@ -242,7 +242,8 @@ fn adding_to_empty_document() {
     );
     doc.body
         .insert(1, new_pair("explore", block_value(Some("a"))), "", true);
-    assert_eq!(doc.to_string(), "connection: \"prod\"\nexplore: a {}\n");
+    // A block with no similar sibling to copy from is set apart by a blank line.
+    assert_eq!(doc.to_string(), "connection: \"prod\"\n\nexplore: a {}\n");
 }
 
 #[test]
@@ -272,7 +273,7 @@ fn replacing_list_keeps_layout() {
     let doc = parse(source).unwrap();
     let set = doc.body.find("set", None).unwrap();
     let new_list = |names: &[&str]| {
-        albert_looker_cst::edit::list_of(names.iter().map(|n| ListValue::Literal(n.to_string())).collect())
+        looker_cst::edit::list_of(names.iter().map(|n| ListValue::Literal(n.to_string())).collect())
     };
     child(&set, "fields", None)
         .write()
@@ -297,7 +298,7 @@ fn replacing_list_keeps_leading_commas() {
         .collect();
     child(&set, "fields", None)
         .write()
-        .set_value(Value::List(albert_looker_cst::edit::list_of(elements)));
+        .set_value(Value::List(looker_cst::edit::list_of(elements)));
     assert_eq!(
         doc.to_string(),
         "set: s {\n  fields: [\n    a\n    , b\n    , c\n    ]\n}\n"
@@ -336,6 +337,52 @@ fn insert_source_keeps_comments_above_first_pair() {
         .unwrap();
     assert_eq!(
         doc.to_string(),
-        "view: v {\n  dimension: a {}\n  # why b exists\n  # second line\n  dimension: b {}\n}\n"
+        "view: v {\n  dimension: a {}\n\n  # why b exists\n  # second line\n  dimension: b {}\n}\n"
+    );
+}
+
+#[test]
+fn new_block_is_set_apart_when_no_sibling_shows_the_spacing() {
+    // The only other dimension is the first child, whose spacing follows the brace.
+    let doc = parse("view: v {\n  dimension: a {}\n}\n").unwrap();
+    let view = doc.body.find("view", None).unwrap();
+    view.write().body_mut().unwrap().insert(
+        usize::MAX,
+        new_pair("dimension", block_value(Some("b"))),
+        "",
+        false,
+    );
+    assert_eq!(
+        doc.to_string(),
+        "view: v {\n  dimension: a {}\n\n  dimension: b {}\n}\n"
+    );
+
+    // Only scalars so far, as in a view built from scratch.
+    let doc = parse("view: v {\n  sql_table_name: t ;;\n}\n").unwrap();
+    let view = doc.body.find("view", None).unwrap();
+    view.write().body_mut().unwrap().insert(
+        usize::MAX,
+        new_pair("dimension", block_value(Some("b"))),
+        "",
+        false,
+    );
+    assert_eq!(
+        doc.to_string(),
+        "view: v {\n  sql_table_name: t ;;\n\n  dimension: b {}\n}\n"
+    );
+}
+
+#[test]
+fn unnamed_blocks_are_not_set_apart() {
+    let doc = parse("view: v {\n  dimension: d {\n    case: {\n      when: {}\n    }\n  }\n}\n").unwrap();
+    let view = doc.body.find("view", None).unwrap();
+    let case = child(&child(&view, "dimension", None), "case", None);
+    case.write()
+        .body_mut()
+        .unwrap()
+        .insert(usize::MAX, new_pair("when", block_value(None)), "    ", false);
+    assert_eq!(
+        doc.to_string(),
+        "view: v {\n  dimension: d {\n    case: {\n      when: {}\n      when: {}\n    }\n  }\n}\n"
     );
 }

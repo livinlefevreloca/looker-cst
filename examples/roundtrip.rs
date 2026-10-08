@@ -23,7 +23,7 @@ fn main() {
     let mut failures = 0;
     for path in &files {
         let source = std::fs::read_to_string(path).unwrap();
-        match albert_looker_cst::parse(&source) {
+        match looker_cst::parse(&source) {
             Ok(doc) if doc.to_string() == source => {}
             Ok(_) => {
                 failures += 1;
