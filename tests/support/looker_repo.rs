@@ -1,8 +1,8 @@
 //! Locates the looker repo checkout used by the tests and benchmarks, cloning it when needed.
 //!
 //! The repo is read from LOOKER_REPO, which defaults to target/looker. When that path does
-//! not exist the repo is cloned there from LOOKER_REPO_URL (default meetalbert/looker over
-//! SSH), so point LOOKER_REPO at an existing checkout such as ../looker to test a branch.
+//! not exist the repo is cloned there from LOOKER_REPO_URL (default mozilla/looker-hub over
+//! HTTPS), so point LOOKER_REPO at an existing checkout to test a branch.
 //! If the clone fails callers get no files, unless REQUIRE_LOOKER_REPO is set (as in CI),
 //! where it panics.
 
@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::OnceLock;
 
-const DEFAULT_REPO_URL: &str = "git@github.com:meetalbert/looker.git";
+const DEFAULT_REPO_URL: &str = "https://github.com/mozilla/looker-hub.git";
 
 pub fn looker_files() -> Vec<PathBuf> {
     let Some(root) = looker_repo() else {

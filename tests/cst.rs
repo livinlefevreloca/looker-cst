@@ -139,6 +139,29 @@ fn string_escaping_round_trips() {
 }
 
 #[test]
+fn set_text_preserves_string_source_when_logical_text_unchanged() {
+    let source = r#"view: v { dimension: d { description: "path `SOFTWARE\\Microsoft\\Windows`" } }"#;
+    let doc = parse(source).unwrap();
+    let desc = doc
+        .body
+        .find("view", None)
+        .unwrap()
+        .read()
+        .body()
+        .unwrap()
+        .find("dimension", None)
+        .unwrap()
+        .read()
+        .body()
+        .unwrap()
+        .find("description", None)
+        .unwrap();
+    let text = desc.read().text().unwrap();
+    desc.write().set_text(&text);
+    assert_eq!(doc.to_string(), source);
+}
+
+#[test]
 fn infers_value_kinds() {
     assert!(matches!(infer_scalar("type", "number"), Value::Literal(_)));
     assert!(matches!(infer_scalar("label", "Id"), Value::String(_)));

@@ -396,7 +396,15 @@ impl Pair {
     pub fn set_text(&mut self, text: &str) -> bool {
         match &mut self.value {
             Value::Literal(literal) => *literal = text.to_string(),
-            Value::String(raw) => *raw = escape_string(text),
+            Value::String(raw) => {
+                // escape_string is not the inverse of unescape_string: only quotes and
+                // meaningful backslashes are escaped on write, so re-encoding the decoded
+                // text would change hand-written forms such as `\\Microsoft` in a path.
+                if unescape_string(raw) == text {
+                    return true;
+                }
+                *raw = escape_string(text);
+            }
             Value::Expr(expr) => expr.text = text.trim().to_string(),
             Value::List(_) | Value::Block(_) => return false,
         }

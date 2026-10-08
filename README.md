@@ -168,12 +168,13 @@ remove pairs in every block, checking the source is restored exactly.
 | Variable              | Default                                | Meaning                                               |
 | --------------------- | -------------------------------------- | ----------------------------------------------------- |
 | `LOOKER_REPO`         | `target/looker`                        | Checkout to test; cloned there when it does not exist |
-| `LOOKER_REPO_URL`     | `git@github.com:meetalbert/looker.git` | Where to clone from                                   |
+| `LOOKER_REPO_URL`     | `https://github.com/mozilla/looker-hub.git` | Where to clone from                              |
 | `REQUIRE_LOOKER_REPO` | unset                                  | Fail instead of skipping when the clone fails         |
 
-The first run shallow clones `master` into `target/looker` and later runs reuse it; delete the
-directory (or `cargo clean`) to pick up newer commits. To test a branch you have checked out,
-point the tests at it: `LOOKER_REPO=../looker cargo test`.
+The first run shallow clones `main` of [mozilla/looker-hub](https://github.com/mozilla/looker-hub)
+into `target/looker` and later runs reuse it; delete the directory (or `cargo clean`) to pick up
+newer commits. To test another checkout, point the tests at it:
+`LOOKER_REPO=../looker-hub cargo test`.
 
 ### Benchmarks
 
@@ -183,16 +184,19 @@ uv run --with lkml scripts/benchmark.py      # Python: looker_cst against lkml
 ```
 
 Both use the looker repo checkout the tests clone (`target/looker`, or `$LOOKER_REPO`), and
-`scripts/benchmark.py` also takes a path. On an Apple Silicon laptop over the 1097 files
-(5.1 MB) of `meetalbert/looker`, through Python:
+`scripts/benchmark.py` also takes a path. On an Apple Silicon laptop over the 3433 files
+(71 MB) of [mozilla/looker-hub](https://github.com/mozilla/looker-hub), through Python (median
+of 3 runs):
 
-| Benchmark  | looker_cst | lkml      | lkml / ours |
-| ---------- | ----------------- | --------- | ----------- |
-| parse      | 23.4 ms           | 2411.6 ms | 103x        |
-| print      | 5.9 ms            | 145.7 ms  | 25x         |
-| round trip | 25.5 ms           | 2296.7 ms | 90x         |
+| Benchmark  | looker_cst | lkml       | lkml / ours |
+| ---------- | ---------- | ---------- | ----------- |
+| parse      | 266.6 ms   | 30823.7 ms | 116x        |
+| print      | 59.9 ms    | 1551.5 ms  | 26x         |
+| round trip | 304.2 ms   | 30796.7 ms | 101x        |
 
-From Rust, `cargo bench` parses the same repo in about 19 ms (250 MiB/s).
+From Rust, `cargo bench` parses the same repo in about 240 ms (~280 MiB/s). The lkml comparison
+takes several minutes on the full hub; pass a smaller directory to `scripts/benchmark.py` for a
+quick check.
 
 To test a specific Python version:
 

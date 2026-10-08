@@ -1,8 +1,8 @@
 """Reads, modifies and rewrites every .lkml file in the looker repo through the Python API.
 
 The repo is read from LOOKER_REPO, which defaults to target/looker. When that path does not
-exist the repo is cloned there from LOOKER_REPO_URL (default meetalbert/looker over SSH), so
-point LOOKER_REPO at an existing checkout such as ../looker to test a branch. If the clone
+exist the repo is cloned there from LOOKER_REPO_URL (default mozilla/looker-hub over HTTPS), so
+point LOOKER_REPO at an existing checkout to test a branch. If the clone
 fails these tests are skipped, unless REQUIRE_LOOKER_REPO is set.
 """
 
@@ -19,7 +19,7 @@ from looker_cst import Pair, parse
 
 PROJECT_ROOT = Path(__file__).parents[2]
 LOOKER_REPO = Path(os.environ.get("LOOKER_REPO", PROJECT_ROOT / "target" / "looker"))
-LOOKER_REPO_URL = os.environ.get("LOOKER_REPO_URL", "git@github.com:meetalbert/looker.git")
+LOOKER_REPO_URL = os.environ.get("LOOKER_REPO_URL", "https://github.com/mozilla/looker-hub.git")
 
 
 def clone_looker_repo() -> Optional[str]:
